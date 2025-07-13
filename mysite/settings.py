@@ -74,14 +74,18 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'HOST': 'aws-0-us-east-2.pooler.supabase.com',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PORT': '6543',
-        'PASSWORD': 'adminhde',
+        'HOST': os.getenv('host'),
+        'NAME': os.getenv('dbname'),
+        'USER': os.getenv('user'),
+        'PORT': os.getenv('port'),
+        'PASSWORD': os.getenv('password'),
     }
 }
 
