@@ -17,6 +17,14 @@
   {% if parsed_text %}
     <h2>Parsed Text</h2>
     <pre>{{ parsed_text }}</pre>
+    <form action="/action_page.php">
+    <label for="fname">SSN:</label><br>
+    <input type="text" id="fname" name="fname" value= {{ parsed_text }} ><br>
+    <label for="lname">Name:</label><br>
+    <input type="text" id="lname" name="lname" value=""><br><br>
+    <input type="submit" value="Submit">
+    <input type="reset" value="Reset">
+</form> 
   {% endif %}
 
   {% if raw_json %}
