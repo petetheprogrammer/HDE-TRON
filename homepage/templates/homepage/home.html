@@ -1,27 +1,109 @@
-<!-- templates/home.html -->
+{% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>OCR.space Demo</title>
+    <title>OCR & Confirm</title>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .form-section { margin-bottom: 2rem; }
+        .camera-preview { text-align: center; margin: 20px 0; }
+        .messages { margin-bottom: 1rem; }
+        .logout-section { margin-top: 30px; text-align: center; }
+    </style>
 </head>
 <body>
-  <h1>Upload an Image for OCR</h1>
+    <div class="container">
+        <h1>Scan & Save Serial</h1>
 
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Run OCR</button>
-  </form>
+        <!-- Messages Section -->
+        <div class="messages">
+            {% for msg in messages %}
+                <p style="color: {% if msg.tags == 'error' %}red{% else %}green{% endif %}">
+                    {{ msg }}
+                </p>
+            {% endfor %}
+        </div>
 
-  {% if parsed_text %}
-    <h2>Parsed Text</h2>
-    <pre>{{ parsed_text }}</pre>
-  {% endif %}
+        <!-- Main OCR Form -->
+        <form id="ocrForm" method="post" enctype="multipart/form-data" class="form-section">
+            {% csrf_token %}
 
-  {% if raw_json %}
-    <h2>Raw JSON</h2>
-    <pre>{{ raw_json }}</pre>
-  {% endif %}
+            <!-- Camera Preview Section -->
+            <div class="camera-preview">
+                <video id="video" autoplay playsinline style="width:100%;max-width:400px;"></video>
+                <br>
+                <button id="snap" type="button">📷 Take Photo</button>
+            </div>
+
+            <!-- Hidden file input for camera capture -->
+            <input id="fileInput" type="file" name="camera_image" accept="image/*" style="display:none;">
+
+            <!-- Manual file upload -->
+            <div style="margin-bottom:1rem;">
+                <label>
+                    📁 Upload File:<br>
+                    <input type="file" name="file_image" accept="image/*">
+                </label>
+            </div>
+
+            <button type="submit">Run OCR</button>
+        </form>
+
+        <!-- Confirmation Form -->
+        {% if confirm_form %}
+            <div class="form-section">
+                <h2>Confirm or Edit</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ confirm_form.as_p }}
+                    <button type="submit">Confirm & Save</button>
+                </form>
+            </div>
+        {% endif %}
+
+        <!-- Debug Section -->
+        {% if raw_json %}
+            <div class="form-section">
+                <h3>Raw OCR JSON</h3>
+                <pre>{{ raw_json }}</pre>
+            </div>
+        {% endif %}
+
+        <!-- Logout Section -->
+        <div class="logout-section">
+            <form action="{% url 'logout' %}" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit">Log out</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const video     = document.getElementById('video');
+        const snapBtn   = document.getElementById('snap');
+        const fileInput = document.getElementById('fileInput');
+        const form      = document.getElementById('ocrForm');
+
+        // 1) Ask for camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => video.srcObject = stream)
+            .catch(err => console.warn("No camera available:", err));
+
+        // 2) On "Take Photo", grab a frame into a Blob, attach to the hidden file input, then auto-submit
+        snapBtn.addEventListener('click', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            canvas.toBlob(blob => {
+                const file = new File([blob], "capture.jpg", { type: blob.type });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInput.files = dt.files;
+                form.submit();
+            }, 'image/jpeg');
+        });
+    </script>
 </body>
 </html>

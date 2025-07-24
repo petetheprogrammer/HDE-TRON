@@ -9,6 +9,9 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+from dotenv import load_dotenv
+
+load_dotenv()
 import os
 from pathlib import Path
 
@@ -74,9 +77,7 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-from dotenv import load_dotenv
 
-load_dotenv()
 
 DATABASES = {
     'default': {
@@ -86,6 +87,9 @@ DATABASES = {
         'USER': os.getenv('user'),
         'PORT': os.getenv('port'),
         'PASSWORD': os.getenv('password'),
+        'OPTIONS': {
+            'sslmode': 'require',
+        }
     }
 }
 
@@ -133,3 +137,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 OCR_SPACE_API_KEY = os.environ.get("OCR_SPACE_API_KEY", "K85162163988957")
+
+LOGIN_URL          = 'login'         # named URL for the login view
+LOGIN_REDIRECT_URL = 'home'          # named URL for your homepage view
+LOGOUT_REDIRECT_URL = 'login'
