@@ -6,7 +6,7 @@ class SerialRecord(models.Model):
     worker_name   = models.CharField(   # the name read from the image
         max_length=100
     )
-    uploader      = models.ForeignKey(  # the logged-in user who uploads
+    uploader      = models.ForeignKey(  # the logged-in user who uploads worker_name
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="uploads"
