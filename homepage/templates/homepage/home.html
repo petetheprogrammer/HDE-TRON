@@ -2,18 +2,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OCR & Confirm</title>
+    <meta charset="utf-8">
+    <title>Barcode Scanner</title>
     <style>
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .form-section { margin-bottom: 2rem; }
         .camera-preview { text-align: center; margin: 20px 0; }
         .messages { margin-bottom: 1rem; }
         .logout-section { margin-top: 30px; text-align: center; }
+        .scan-results { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        .barcode-item { margin: 10px 0; padding: 10px; background: white; border-radius: 3px; }
+        .btn { padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .support-info { padding: 10px; background: #e9ecef; border-radius: 5px; margin-bottom: 20px; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #dee2e6; }
+        .user-info { text-align: right; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Scan & Save Serial</h1>
+        <!-- Header with logged-in user info -->
+        <div class="header-container">
+            <h1>Barcode Scanner</h1>
+            <div class="user-info">
+                <small style="color: #6c757d;">Logged in as:</small><br>
+                <strong>{{ username }}</strong>
+            </div>
+        </div>
 
         <!-- Messages Section -->
         <div class="messages">
@@ -24,86 +42,261 @@
             {% endfor %}
         </div>
 
-        <!-- Main OCR Form -->
-        <form id="ocrForm" method="post" enctype="multipart/form-data" class="form-section">
-            {% csrf_token %}
+        <!-- Browser Support Check -->
+        <div id="supportCheck" class="support-info">
+            <p>Checking barcode detection support...</p>
+        </div>
 
-            <!-- Camera Preview Section -->
-            <div class="camera-preview">
-                <video id="video" autoplay playsinline style="width:100%;max-width:400px;"></video>
-                <br>
-                <button id="snap" type="button">📷 Take Photo</button>
-            </div>
+        <!-- Camera Preview Section -->
+        <div class="camera-preview">
+            <video id="video" autoplay playsinline style="width:100%; max-width:400px;"></video>
+            <br>
+            <button id="scanBtn" type="button" class="btn btn-primary">📷 Scan Barcode</button>
+            <button id="continuousBtn" type="button" class="btn btn-primary">🔄 Continuous Scan</button>
+            <button id="stopBtn" type="button" class="btn btn-danger" style="display:none;">⏹️ Stop</button>
+        </div>
 
-            <!-- Hidden file input for camera capture -->
-            <input id="fileInput" type="file" name="camera_image" accept="image/*" style="display:none;">
+        <!-- File Upload Option -->
+        <div class="form-section">
+            <label>
+                📁 Or Upload Image:<br>
+                <input id="fileUpload" type="file" accept="image/*" style="margin-top: 10px;">
+            </label>
+        </div>
 
-            <!-- Manual file upload -->
-            <div style="margin-bottom:1rem;">
-                <label>
-                    📁 Upload File:<br>
-                    <input type="file" name="file_image" accept="image/*">
-                </label>
-            </div>
+        <!-- Scan Results -->
+        <div id="scanResults" class="scan-results" style="display:none;">
+            <h3>Detected Barcodes:</h3>
+            <div id="barcodeList"></div>
+        </div>
 
-            <button type="submit">Run OCR</button>
-        </form>
+        <!-- Simplified Confirmation Form -->
+        <div id="confirmSection" class="form-section" style="display:none;">
+            <h2>Confirm Serial Number</h2>
+            <form method="post">
+                {% csrf_token %}
+                <div style="margin-bottom: 15px;">
+                    <label for="serialNumber">Serial Number:</label><br>
+                    <input type="text" id="serialNumber" name="serial_number" style="width: 100%; padding: 8px; margin-top: 5px;">
+                </div>
+                <!-- Hidden field automatically uses logged-in user -->
+                <input type="hidden" name="worker_name" value="{{ username }}">
+                
+                <button type="submit" class="btn btn-success">💾 Confirm & Save</button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary">❌ Cancel</button>
+            </form>
+        </div>
 
-        <!-- Confirmation Form -->
-        {% if confirm_form %}
-            <div class="form-section">
-                <h2>Confirm or Edit</h2>
-                <form method="post">
-                    {% csrf_token %}
-                    {{ confirm_form.as_p }}
-                    <button type="submit">Confirm & Save</button>
-                </form>
-            </div>
-        {% endif %}
-
-        <!-- Debug Section -->
-        {% if raw_json %}
-            <div class="form-section">
-                <h3>Raw OCR JSON</h3>
-                <pre>{{ raw_json }}</pre>
-            </div>
-        {% endif %}
+        <!-- OCR Fallback Form (for browsers without barcode detection) -->
+        <div id="ocrFallback" class="form-section" style="display:none;">
+            <h3>OCR Fallback</h3>
+            <p>No barcode detected. Upload image for OCR processing:</p>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file" name="file_image" accept="image/*" required>
+                <button type="submit" class="btn btn-secondary">Run OCR</button>
+            </form>
+        </div>
 
         <!-- Logout Section -->
         <div class="logout-section">
             <form action="{% url 'logout' %}" method="post" style="display:inline;">
                 {% csrf_token %}
-                <button type="submit">Log out</button>
+                <button type="submit" class="btn btn-danger">Log out</button>
             </form>
         </div>
     </div>
 
     <script>
-        const video     = document.getElementById('video');
-        const snapBtn   = document.getElementById('snap');
-        const fileInput = document.getElementById('fileInput');
-        const form      = document.getElementById('ocrForm');
+        const video = document.getElementById('video');
+        const scanBtn = document.getElementById('scanBtn');
+        const continuousBtn = document.getElementById('continuousBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const fileUpload = document.getElementById('fileUpload');
+        const scanResults = document.getElementById('scanResults');
+        const barcodeList = document.getElementById('barcodeList');
+        const supportCheck = document.getElementById('supportCheck');
+        const confirmSection = document.getElementById('confirmSection');
+        const serialNumber = document.getElementById('serialNumber');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const ocrFallback = document.getElementById('ocrFallback');
+        
+        let barcodeDetector = null;
+        let isScanning = false;
+        let scanInterval = null;
+        let currentStream = null;
 
-        // 1) Ask for camera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(stream => video.srcObject = stream)
-            .catch(err => console.warn("No camera available:", err));
+        // Check browser support and initialize
+        async function init() {
+            // Check BarcodeDetector support
+            if (!('BarcodeDetector' in window)) {
+                supportCheck.innerHTML = '<p style="color: red;">❌ Barcode Detection not supported. Using OCR fallback only.</p>';
+                ocrFallback.style.display = 'block';
+                return false;
+            }
 
-        // 2) On "Take Photo", grab a frame into a Blob, attach to the hidden file input, then auto-submit
-        snapBtn.addEventListener('click', () => {
-            const canvas = document.createElement('canvas');
-            canvas.width  = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
+            try {
+                // Get supported formats
+                const supportedFormats = await BarcodeDetector.getSupportedFormats();
+                supportCheck.innerHTML = `
+                    <p style="color: green;">✅ Barcode Detection supported!</p>
+                    <details>
+                        <summary>Supported formats (${supportedFormats.length})</summary>
+                        <p>${supportedFormats.join(', ')}</p>
+                    </details>
+                `;
 
-            canvas.toBlob(blob => {
-                const file = new File([blob], "capture.jpg", { type: blob.type });
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                fileInput.files = dt.files;
-                form.submit();
-            }, 'image/jpeg');
+                // Create detector with all supported formats
+                barcodeDetector = new BarcodeDetector({ formats: supportedFormats });
+
+                // Initialize camera
+                await initCamera();
+                return true;
+
+            } catch (error) {
+                supportCheck.innerHTML = '<p style="color: red;">❌ Error initializing barcode detection: ' + error.message + '</p>';
+                ocrFallback.style.display = 'block';
+                return false;
+            }
+        }
+
+        // Initialize camera
+        async function initCamera() {
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = currentStream;
+            } catch (err) {
+                console.warn("Camera not available:", err);
+                supportCheck.innerHTML += '<p style="color: orange;">⚠️ Camera access denied. Use file upload instead.</p>';
+            }
+        }
+
+        // Scan for barcodes
+        async function scanBarcodes(source = video) {
+            if (!barcodeDetector) return;
+
+            try {
+                const barcodes = await barcodeDetector.detect(source);
+                
+                if (barcodes.length > 0) {
+                    displayResults(barcodes);
+                    if (isScanning) stopContinuousScanning();
+                } else if (!isScanning) {
+                    displayNoResults();
+                }
+            } catch (error) {
+                console.error('Detection error:', error);
+                if (!isScanning) {
+                    barcodeList.innerHTML = '<p style="color: red;">Detection error: ' + error.message + '</p>';
+                    scanResults.style.display = 'block';
+                }
+            }
+        }
+
+        // Display scan results
+        function displayResults(barcodes) {
+            let html = '';
+            
+            barcodes.forEach((barcode, index) => {
+                html += `
+                    <div class="barcode-item">
+                        <strong>Barcode ${index + 1}:</strong><br>
+                        <strong>Format:</strong> ${barcode.format}<br>
+                        <strong>Value:</strong> ${barcode.rawValue}<br>
+                        <button type="button" onclick="useBarcode('${barcode.rawValue.replace(/'/g, "\\'")}')" class="btn btn-success">
+                            ✅ Use This Value
+                        </button>
+                    </div>
+                `;
+            });
+
+            barcodeList.innerHTML = html;
+            scanResults.style.display = 'block';
+            ocrFallback.style.display = 'none';
+        }
+
+        // Display no results
+        function displayNoResults() {
+            barcodeList.innerHTML = `
+                <p>No barcodes detected.</p>
+                <button type="button" onclick="showOcrFallback()" class="btn btn-secondary">
+                    📄 Try OCR Instead
+                </button>
+            `;
+            scanResults.style.display = 'block';
+        }
+
+        // Use detected barcode value
+        function useBarcode(value) {
+            serialNumber.value = value;
+            confirmSection.style.display = 'block';
+            scanResults.style.display = 'none';
+        }
+
+        // Show OCR fallback
+        function showOcrFallback() {
+            ocrFallback.style.display = 'block';
+            scanResults.style.display = 'none';
+        }
+
+        // File upload handler
+        fileUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const img = new Image();
+                img.onload = () => scanBarcodes(img);
+                img.src = URL.createObjectURL(file);
+            }
         });
+
+        // Start continuous scanning
+        function startContinuousScanning() {
+            if (isScanning) return;
+            
+            isScanning = true;
+            scanBtn.style.display = 'none';
+            continuousBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            
+            scanInterval = setInterval(() => scanBarcodes(), 500);
+        }
+
+        // Stop continuous scanning
+        function stopContinuousScanning() {
+            isScanning = false;
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+            
+            scanBtn.style.display = 'inline-block';
+            continuousBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+        }
+
+        // Event listeners
+        scanBtn.addEventListener('click', () => scanBarcodes());
+        continuousBtn.addEventListener('click', startContinuousScanning);
+        stopBtn.addEventListener('click', stopContinuousScanning);
+
+        // Cancel confirmation
+        cancelBtn.addEventListener('click', () => {
+            confirmSection.style.display = 'none';
+            scanResults.style.display = 'none';
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            stopContinuousScanning();
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+        });
+
+        // Initialize when page loads
+        init();
     </script>
 </body>
 </html>
