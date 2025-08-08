@@ -221,9 +221,7 @@
         function displayNoResults() {
             barcodeList.innerHTML = `
                 <p>No barcodes detected.</p>
-                <button type="button" onclick="showOcrFallback()" class="btn btn-secondary">
-                    📄 Try OCR Instead
-                </button>
+                
             `;
             scanResults.style.display = 'block';
         }
